@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
@@ -20,6 +21,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.dondepp.adapters.PlacesAdapter;
+import com.example.dondepp.model.OverpassResponse;
 import com.example.dondepp.model.Place;
 import com.example.dondepp.services.OverpassService;
 import com.example.dondepp.utils.LocationHelper;
@@ -36,9 +38,11 @@ import org.osmdroid.views.overlay.Marker;
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
@@ -247,4 +251,318 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-}
+    // Listeners
+    private void setupListeners() {
+        btnCurrentLocation.setOnClickListener(v -> {
+            getCurrentLocation();
+            if (currentLatitude != 0 && currentLongitude != 0) {
+                GeoPoint userLocation = new GeoPoint(currentLatitude, currentLongitude);
+                mapController.animateTo(userLocation);
+                mapController.setZoom(15.0);
+            }
+        });
+
+        btnPharmacy.setOnClickListener(v -> {
+            searchPlacesByType("pharmacy", "Farmácias");
+        });
+
+        btnRestaurant.setOnClickListener(v -> {
+            searchPlacesByType("restaurant", "Restaurantes");
+        });
+
+        btnCafe.setOnClickListener(v -> {
+            searchPlacesByType("cafe", "Cafés");
+        });
+
+        btnSupermarket.setOnClickListener(v -> {
+            searchPlacesByType("supermarket", "Mercados");
+        });
+
+        btnHospital.setOnClickListener(v -> {
+            searchPlacesByType("hospital", "Hospitais");
+        });
+
+        // Busca por texto livre (Enter no teclado)
+        searchEditText.setOnEditorActionListener((v, actionId, event) -> {
+            String query = searchEditText.getText().toString().trim();
+            if (!query.isEmpty()) {
+                searchPlacesByText(query);
+                return true;
+            }
+            return false;
+        });
+
+    }
+
+    // Busca de lugares
+    private void searchPlacesByType(String type, String typeName) {
+        if(currentLatitude == 0 || currentLongitude == 0) {
+            Toast.makeText(this, "Obtendo localizacao...", Toast.LENGTH_SHORT).show();
+            getCurrentLocation();
+            return;
+        }
+
+         showLoading(true);
+
+        String query = buildOverpassQuery(type, currentLatitude, currentLongitude, 2000);
+
+        Call<OverpassResponse> call = overpassService.searchPlaces(query);
+        call.enqueue(new Callback<OverpassResponse>() {
+            @Override
+            public void onResponse(Call<OverpassResponse> call, Response<OverpassResponse> response) {
+                showLoading(false);
+
+                if (response.isSuccessful() && response.body() != null) {
+                    List<OverpassResponse.Element> elements = response.body().getElements();
+
+                    if(elements != null && !elements.isEmpty()) {
+                        List<Place> places = convertElementsToPlaces(elements, type);
+                        displayResults(places, typeName);
+                    } else {
+                        showNoResults();
+                        Toast.makeText(MainActivity.this, "Nenhum resultado encontrado para " + typeName, Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<OverpassResponse> call, Throwable t) {
+                showLoading(false);
+                Toast.makeText(MainActivity.this, "Erro ao buscar lugares: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void searchPlacesByText(String searchText) {
+        if (currentLatitude == 0 || currentLongitude == 0) {
+            Toast.makeText(this, "Obtendo localizacao...", Toast.LENGTH_SHORT).show();
+            getCurrentLocation();
+            return;
+        }
+
+        showLoading(true);
+
+        String query = buildOverpassQueryByName(searchText, currentLatitude, currentLongitude, 2000);
+        Call<OverpassResponse> call = overpassService.searchPlaces(query);
+        call.enqueue(new Callback<OverpassResponse>() {
+            @Override
+            public void onResponse(Call<OverpassResponse> call, Response<OverpassResponse> response) {
+                showLoading(false);
+
+                if (response.isSuccessful() && response.body() != null) {
+                    List<OverpassResponse.Element> elements = response.body().getElements();
+
+                    if (elements != null && !elements.isEmpty()) {
+                        List<Place> places = convertElementsToPlaces(elements, "search");
+                        displayResults(places, "Resultados");
+                    } else {
+                        showNoResults();
+                    }
+                } else {
+                    Toast.makeText(MainActivity.this, "Erro na busca", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<OverpassResponse> call, Throwable t) {
+                showLoading(false);
+                Toast.makeText(MainActivity.this, "Erro de conexão", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private String buildOverpassQuery(String amenityType, double lat, double lon, int radius) {
+        return String.format(
+                "[out:json];(node[\"amenity\"=\"%s\"](around:%d,%.6f,%.6f);way[\"amenity\"=\"%s\"](around:%d,%.6f,%.6f););out center;",
+                amenityType, radius, lat, lon,
+                amenityType, radius, lat, lon
+        );
+    }
+
+    private String buildOverpassQueryByName(String name, double lat, double lon, int radius) {
+        return String.format(
+                "[out:json];(node[\"name\"~\"%s\",i](around:%d,%.6f,%.6f);way[\"name\"~\"%s\",i](around:%d,%.6f,%.6f););out center;",
+                name, radius, lat, lon,
+                name, radius, lat, lon
+        );
+    }
+
+    // Converter e processar dados
+    private List<Place> convertElementsToPlaces(List<OverpassResponse.Element> elements, String type) {
+        List<Place> places = new ArrayList<>();
+
+        for (OverpassResponse.Element element : elements) {
+            Place place = new Place(
+                    element.getName(),
+                    element.getLat(),
+                    element.getLon(),
+                    type
+            );
+
+            // Add endereco se disponivel
+            String address = element.getAddress();
+            if(address != null && !address.isEmpty()) {
+                place.setAddress(address);
+            }
+
+            // Calcula distancia do usuario
+            double distance = LocationHelper.calculateDistance(
+                    currentLatitude, currentLongitude,
+                    element.getLat(), element.getLon()
+            );
+            place.setDistance(distance);
+
+            places.add(place);
+        }
+
+        // Ordenar por distancia (mais proximo primeiro)
+        Collections.sort(places, new Comparator<Place>() {
+            @Override
+            public int compare(Place o1, Place o2) {
+                return Double.compare(o1.getDistance(), o2.getDistance());
+            }
+        });
+
+        return places;
+    }
+
+    // Exibir Resultados
+
+    private void displayResults(List<Place> places, String categoryName) {
+        currentPlaces = places;
+
+        placesAdapter.updatePlaces(places);
+
+        tvResultsCount.setText(places.size() + " lugares");
+        tvResultsTitle.setText(caterogyName); // criar variavel
+
+        tvNoResults.setVisibility(View.GONE);
+        recyclerViewPlaces.setVisibility(View.VISIBLE);
+
+        bottonSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+
+// Adicionar marcadores no mapa
+        addMarkersToMap(places);
+
+        // Ajustar zoom do mapa para mostrar todos os lugares
+        if (!places.isEmpty()) {
+            adjustMapBounds(places);
+        }
+    }
+
+    private void showNoResults() {
+        placesAdapter.clearPlaces();
+        tvResultsCount.setText("0 lugares");
+        tvNoResults.setVisibility(View.VISIBLE);
+        recyclerViewPlaces.setVisibility(View.GONE);
+        clearMapMarkers();
+    }
+
+// ==================== MARCADORES NO MAPA ====================
+
+    private void addMarkersToMap(List<Place> places) {
+        // Limpar marcadores antigos
+        clearMapMarkers();
+
+        // Adicionar novo marcador para cada lugar
+        for (Place place : places) {
+            Marker marker = new Marker(mapView);
+            marker.setPosition(new GeoPoint(place.getLatitude(), place.getLongitude()));
+            marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+            marker.setTitle(place.getName());
+            marker.setSnippet(place.getAddress() + "\n" + place.getFormattedDistance());
+
+            // Customizar ícone baseado no tipo (opcional)
+            // marker.setIcon(getDrawable(R.drawable.ic_marker));
+
+            mapView.getOverlays().add(marker);
+            mapMarkers.add(marker);
+        }
+
+        // Redesenhar mapa
+        mapView.invalidate();
+    }
+
+    private void clearMapMarkers() {
+        for (Marker marker : mapMarkers) {
+            mapView.getOverlays().remove(marker);
+        }
+        mapMarkers.clear();
+        mapView.invalidate();
+    }
+
+    private void adjustMapBounds(List<Place> places) {
+        if (places.isEmpty()) return;
+
+        // Encontrar limites (bounding box)
+        double minLat = places.get(0).getLatitude();
+        double maxLat = places.get(0).getLatitude();
+        double minLon = places.get(0).getLongitude();
+        double maxLon = places.get(0).getLongitude();
+
+        for (Place place : places) {
+            minLat = Math.min(minLat, place.getLatitude());
+            maxLat = Math.max(maxLat, place.getLatitude());
+            minLon = Math.min(minLon, place.getLongitude());
+            maxLon = Math.max(maxLon, place.getLongitude());
+        }
+
+        // Incluir posição do usuário
+        minLat = Math.min(minLat, currentLatitude);
+        maxLat = Math.max(maxLat, currentLatitude);
+        minLon = Math.min(minLon, currentLongitude);
+        maxLon = Math.max(maxLon, currentLongitude);
+
+        // Calcular centro
+        double centerLat = (minLat + maxLat) / 2;
+        double centerLon = (minLon + maxLon) / 2;
+
+        // Centralizar mapa
+        mapController.setCenter(new GeoPoint(centerLat, centerLon));
+
+        // Ajustar zoom (aproximado)
+        double latDiff = maxLat - minLat;
+        double lonDiff = maxLon - minLon;
+        double maxDiff = Math.max(latDiff, lonDiff);
+
+        double zoom = 15.0;
+        if (maxDiff > 0.1) zoom = 12.0;
+        else if (maxDiff > 0.05) zoom = 13.0;
+        else if (maxDiff > 0.02) zoom = 14.0;
+
+        mapController.setZoom(zoom);
+    }
+
+// ==================== UTILIDADES ====================
+
+    private void showLoading(boolean show) {
+        progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
+    }
+
+// ==================== ADICIONAR NO FINAL DA CLASSE ====================
+// Não esqueça de adicionar a importação no início do arquivo:
+// import java.util.Collections;
+// import java.util.Comparator;
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
