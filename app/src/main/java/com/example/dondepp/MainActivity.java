@@ -1,10 +1,17 @@
 package com.example.dondepp;
 
+import static com.google.android.material.internal.ViewUtils.hideKeyboard;
+
 import android.Manifest;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
@@ -52,9 +59,11 @@ public class MainActivity extends AppCompatActivity {
     private MapView mapView;
     private RecyclerView recyclerViewPlaces;
     private EditText searchEditText;
+    private ImageButton btnSearch;
     private ImageButton btnCurrentLocation;
     private ProgressBar progressBar;
     private TextView tvResultsCount;
+    private TextView tvResultsTitle;
     private TextView tvNoResults;
     private CardView bottonSheet;
 
@@ -123,11 +132,12 @@ public class MainActivity extends AppCompatActivity {
         tvNoResults = findViewById(R.id.tvNoResults);
 
         // Busca
+        btnSearch = findViewById(R.id.btnSearch);
         searchEditText = findViewById(R.id.searchEditText);
         btnCurrentLocation = findViewById(R.id.btnCurrentLocation);
 
         // Loading
-//        progressBar = findViewById(R.id.progressBar);
+        progressBar = findViewById(R.id.progressBar);
 
         // Botoes de categoria
         btnPharmacy = findViewById(R.id.btnPharmacy);
@@ -253,6 +263,16 @@ public class MainActivity extends AppCompatActivity {
 
     // Listeners
     private void setupListeners() {
+        btnSearch.setOnClickListener(v -> {
+            String query = searchEditText.getText().toString().trim();
+            if (!query.isEmpty()) {
+                searchPlacesByText(query);
+                hideKeyboard(); // esconder teclado apos busca
+            } else {
+                Toast.makeText(this, "Digite algo para buscar", Toast.LENGTH_SHORT).show();
+            }
+        });
+
         btnCurrentLocation.setOnClickListener(v -> {
             getCurrentLocation();
             if (currentLatitude != 0 && currentLongitude != 0) {
@@ -261,6 +281,35 @@ public class MainActivity extends AppCompatActivity {
                 mapController.setZoom(15.0);
             }
         });
+//
+//        searchEditText.addTextChangedListener(new TextWatcher() {
+//            private Handler handler = new Handler();
+//            private Runnable runnable;
+//
+//            @Override
+//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+//
+//            @Override
+//            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+//
+//            @Override
+//            public void afterTextChanged(Editable s) {
+//                // Cancelar busca anterior
+//                if (runnable != null) {
+//                    handler.removeCallbacks(runnable);
+//                }
+//
+//                // Aguardar 500ms antes de buscar (debounce)
+//                runnable = () -> {
+//                    String query = s.toString().trim();
+//                    if (query.length() >= 3) { // Buscar apenas se tiver 3+ caracteres
+//                        searchPlacesByText(query);
+//                    }
+//                };
+//                handler.postDelayed(runnable, 500);
+//            }
+//
+//        });
 
         btnPharmacy.setOnClickListener(v -> {
             searchPlacesByType("pharmacy", "Farmácias");
@@ -292,6 +341,14 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
+    }
+
+    private void hideKeyboard() {
+        View view = this.getCurrentFocus();
+        if (view != null) {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+        }
     }
 
     // Busca de lugares
@@ -434,12 +491,12 @@ public class MainActivity extends AppCompatActivity {
         placesAdapter.updatePlaces(places);
 
         tvResultsCount.setText(places.size() + " lugares");
-        tvResultsTitle.setText(caterogyName); // criar variavel
+        tvResultsTitle.setText(categoryName);
 
         tvNoResults.setVisibility(View.GONE);
         recyclerViewPlaces.setVisibility(View.VISIBLE);
 
-        bottonSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
 
 // Adicionar marcadores no mapa
         addMarkersToMap(places);
@@ -539,10 +596,6 @@ public class MainActivity extends AppCompatActivity {
         progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
-// ==================== ADICIONAR NO FINAL DA CLASSE ====================
-// Não esqueça de adicionar a importação no início do arquivo:
-// import java.util.Collections;
-// import java.util.Comparator;
 
     }
 
