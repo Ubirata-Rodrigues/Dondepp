@@ -222,9 +222,9 @@ Este projeto foi desenvolvido para fins educacionais.
 
 Este é um projeto acadêmico desenvolvido como trabalho final da disciplina de Java Mobile.
 
-| Nome                   | GitHub                                                     | LinkedIn                                                                                          |
-|------------------------|------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| **[Ubiratã Rodrigues]**  | [@Ubirata-Rodrigues](https://github.com/Ubirata-Rodrigues) | [linkedin.com/in/perfil1](https://linkedin.com/in/perfil1)                                        |
+| Nome                   | GitHub                                                     | LinkedIn                                                                                        |
+|------------------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| **[Ubiratã Rodrigues]**  | [@Ubirata-Rodrigues](https://github.com/Ubirata-Rodrigues) | [linkedin.com/in/perfil](https://linkedin.com/in/perfil)                                        |
 | **[Paulo G M Santos]** | [@paulogm15](https://github.com/paulogm15)                 | [linkedin.com/in/paulogm](https://www.linkedin.com/in/paulo-gabriel-mendes-dos-santos-a81650106/) |
 
 
