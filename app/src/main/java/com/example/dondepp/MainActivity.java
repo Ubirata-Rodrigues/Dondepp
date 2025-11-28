@@ -1,18 +1,12 @@
 package com.example.dondepp;
 
-import static com.google.android.material.internal.ViewUtils.hideKeyboard;
-
 import android.Manifest;
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.util.Log;
 import android.view.View;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,18 +39,12 @@ import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider;
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
-import okhttp3.OkHttpClient;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
-
-import android.text.TextWatcher;
-import android.text.Editable;
-import android.os.Handler;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -64,14 +52,11 @@ public class MainActivity extends AppCompatActivity {
     private MapView mapView;
     private RecyclerView recyclerViewPlaces;
     private EditText searchEditText;
-    private ImageButton btnSearch;  // Botão de busca
     private ImageButton btnCurrentLocation;
     private ProgressBar progressBar;
-    private TextView tvResultsTitle;
     private TextView tvResultsCount;
     private TextView tvNoResults;
     private CardView bottonSheet;
-    private LinearLayout cardPlace;
 
     // Botoes de categoria
     private MaterialButton btnPharmacy;
@@ -136,15 +121,13 @@ public class MainActivity extends AppCompatActivity {
         bottonSheet = findViewById(R.id.bottomSheet);
         tvResultsCount = findViewById(R.id.tvResultsCount);
         tvNoResults = findViewById(R.id.tvNoResults);
-        tvResultsTitle = findViewById(R.id.tvResultsTitle);
 
         // Busca
-        btnSearch = findViewById(R.id.btnSearch);
         searchEditText = findViewById(R.id.searchEditText);
         btnCurrentLocation = findViewById(R.id.btnCurrentLocation);
 
         // Loading
-        progressBar = findViewById(R.id.progressBar);
+//        progressBar = findViewById(R.id.progressBar);
 
         // Botoes de categoria
         btnPharmacy = findViewById(R.id.btnPharmacy);
@@ -210,15 +193,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initializeRetrofit() {
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(60, TimeUnit.SECONDS)  // Era 30, aumente para 60
-                .readTimeout(60, TimeUnit.SECONDS)     // Era 30, aumente para 60
-                .writeTimeout(60, TimeUnit.SECONDS)    // Era 30, aumente para 60
-                .build();
-
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl("https://overpass-api.de/api/")
-                .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
 
@@ -277,19 +253,6 @@ public class MainActivity extends AppCompatActivity {
 
     // Listeners
     private void setupListeners() {
-
-        // Botão de busca (lupa)
-        btnSearch.setOnClickListener(v -> {
-            String query = searchEditText.getText().toString().trim();
-            if (!query.isEmpty()) {
-                searchPlacesByText(query);
-                // Esconder teclado após buscar
-                hideKeyboard();
-            } else {
-                Toast.makeText(this, "Digite algo para buscar", Toast.LENGTH_SHORT).show();
-            }
-        });
-        
         btnCurrentLocation.setOnClickListener(v -> {
             getCurrentLocation();
             if (currentLatitude != 0 && currentLongitude != 0) {
@@ -298,35 +261,6 @@ public class MainActivity extends AppCompatActivity {
                 mapController.setZoom(15.0);
             }
         });
-
-        // busca enquanto digita
-//        searchEditText.addTextChangedListener(new TextWatcher() {
-//            private Handler handler = new Handler();
-//            private Runnable runnable;
-//
-//            @Override
-//            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-//
-//            @Override
-//            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-//
-//            @Override
-//            public void afterTextChanged(Editable s) {
-//                // Cancelar busca anterior
-//                if (runnable != null) {
-//                    handler.removeCallbacks(runnable);
-//                }
-//
-//                // Aguardar 500ms antes de buscar (debounce)
-//                runnable = () -> {
-//                    String query = s.toString().trim();
-//                    if (query.length() >= 3) { // Buscar apenas se tiver 3+ caracteres
-//                        searchPlacesByText(query);
-//                    }
-//                };
-//                handler.postDelayed(runnable, 500);
-//            }
-//        });
 
         btnPharmacy.setOnClickListener(v -> {
             searchPlacesByType("pharmacy", "Farmácias");
@@ -358,14 +292,6 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
-    }
-
-    private void hideKeyboard() {
-        View view = this.getCurrentFocus();
-        if (view != null) {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
-        }
     }
 
     // Busca de lugares
@@ -414,7 +340,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        Log.d("DEBUG", "Chamando showLoading(true)");
         showLoading(true);
 
         String query = buildOverpassQueryByName(searchText, currentLatitude, currentLongitude, 2000);
@@ -422,37 +347,24 @@ public class MainActivity extends AppCompatActivity {
         call.enqueue(new Callback<OverpassResponse>() {
             @Override
             public void onResponse(Call<OverpassResponse> call, Response<OverpassResponse> response) {
-                Log.d("DEBUG", "Resposta recebida");
                 showLoading(false);
-                Log.d("DEBUG", "Resposta do server: " + response.body());
-
 
                 if (response.isSuccessful() && response.body() != null) {
                     List<OverpassResponse.Element> elements = response.body().getElements();
 
                     if (elements != null && !elements.isEmpty()) {
-                        Log.d("DEBUG", "Elementos encontrados: " + elements.size());
                         List<Place> places = convertElementsToPlaces(elements, "search");
-                        Log.d("DEBUG", "Chamando displayResults");
                         displayResults(places, "Resultados");
                     } else {
-                        Log.d("DEBUG", "Chamando showNoResults");
                         showNoResults();
                     }
                 } else {
-
                     Toast.makeText(MainActivity.this, "Erro na busca", Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<OverpassResponse> call, Throwable t) {
-                Log.e("API_FAILURE", "Erro completo: " + t.getMessage());
-                Log.e("API_FAILURE", "Tipo de erro: " + t.getClass().getName());
-                Log.e("API_FAILURE", "URL tentada: " + call.request().url());
-                t.printStackTrace(); // Mostra stack trace completo
-
-                Log.d("DEBUG", "Falha na requisição");
                 showLoading(false);
                 Toast.makeText(MainActivity.this, "Erro de conexão", Toast.LENGTH_SHORT).show();
             }
@@ -522,14 +434,14 @@ public class MainActivity extends AppCompatActivity {
         placesAdapter.updatePlaces(places);
 
         tvResultsCount.setText(places.size() + " lugares");
-        tvResultsTitle.setText(categoryName);
+        tvResultsTitle.setText(caterogyName); // criar variavel
 
         tvNoResults.setVisibility(View.GONE);
         recyclerViewPlaces.setVisibility(View.VISIBLE);
 
-        bottomSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
+        bottonSheetBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
 
-        // Adicionar marcadores no mapa
+// Adicionar marcadores no mapa
         addMarkersToMap(places);
 
         // Ajustar zoom do mapa para mostrar todos os lugares
@@ -537,7 +449,6 @@ public class MainActivity extends AppCompatActivity {
             adjustMapBounds(places);
         }
     }
-
 
     private void showNoResults() {
         placesAdapter.clearPlaces();
@@ -625,13 +536,13 @@ public class MainActivity extends AppCompatActivity {
 // ==================== UTILIDADES ====================
 
     private void showLoading(boolean show) {
-        if (progressBar != null) {
-            progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
-        } else {
-            Log.e("LocalFinder", "ProgressBar é null!");
-        }
+        progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
+// ==================== ADICIONAR NO FINAL DA CLASSE ====================
+// Não esqueça de adicionar a importação no início do arquivo:
+// import java.util.Collections;
+// import java.util.Comparator;
 
     }
 

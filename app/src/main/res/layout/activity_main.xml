@@ -24,7 +24,7 @@
         <!-- Card com campo de busca -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             app:cardCornerRadius="28dp"
             app:cardElevation="8dp">
 
@@ -35,8 +35,7 @@
                 android:orientation="horizontal"
                 android:padding="8dp">
 
-                <ImageButton
-                    android:id="@+id/btnSearch"
+                <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
                     android:layout_marginStart="12dp"
@@ -136,7 +135,7 @@
         app:cardCornerRadius="20dp"
         app:cardElevation="16dp"
         app:behavior_hideable="true"
-        app:behavior_peekHeight="80dp"
+        app:behavio_peekHeight="80dp"
         app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
         <LinearLayout
@@ -208,7 +207,6 @@
 
     <!-- Loading Indicator -->
     <ProgressBar
-        android:id="@+id/progressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
